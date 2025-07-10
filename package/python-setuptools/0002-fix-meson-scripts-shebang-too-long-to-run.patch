@@ -1,0 +1,59 @@
+From 4763808b9b810e6b88c9b8e7abe773617b243c47 Mon Sep 17 00:00:00 2001
+From: zhaoyouyi <zhaoyouyi@allwinnertech.com>
+Date: Wed, 27 Sep 2023 19:08:36 +0800
+Subject: [PATCH] fix meson scripts shebang too long to run.
+
+PATH="/home/dailybuild/jenkins/code/dailybuild/buildroot/t113-linux/lichee
+/out/t113_s3p/evb1_auto/buildroot/buildroot/host/bin:/home/dailybuild/jenk
+ins/code/dailybuild/buildroot/t113-linux/lichee/out/t113_s3p/evb1_auto/bui
+ldroot/buildroot/host/sbin:/home/dailybuild/jenkins/code/dailybuild/buildr
+oot/t113-linux/lichee/prebuilt/hostbuilt/linux-x86/bin:/home/dailybuild/je
+nkins/code/dailybuild/buildroot/t113-linux/lichee/prebuilt/hostbuilt/linux
+-x86/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr
+/games:/usr/lib/sunJVM/JDK/jdk1.6.0_31/bin:/arm/arm-2010.09/bin:/opt/Pytho
+n3.6.9/bin:/opt/Python3.6.9/bin:/home/dailybuild/jenkins/code/dailybuild/b
+uildroot/t113-linux/lichee/build/bin:/home/dailybuild/jenkins/code/dailybu
+ild/buildroot/t113-linux/lichee/build/bin"  PYTHONNOUSERSITE=y /home/daily
+build/jenkins/code/dailybuild/buildroot/t113-linux/lichee/out/t113_s3p/evb
+1_auto/buildroot/buildroot/host/bin/meson --prefix=/usr --libdir=lib --def
+ault-library=shared --buildtype=release --cross-file=/home/dailybuild/jenk
+ins/code/dailybuild/buildroot/t113-linux/lichee/out/t113_s3p/evb1_auto/bui
+ldroot/buildroot/build/libinput-1.12.5//build/cross-compilation.conf -Dtes
+ts=false -Dlibwacom=false -Ddocumentation=false -Ddebug-gui=false /home/da
+ilybuild/jenkins/code/dailybuild/buildroot/t113-linux/lichee/out/t113_s3p/
+evb1_auto/buildroot/buildroot/build/libinput-1.12.5/ /home/dailybuild/jenk
+ins/code/dailybuild/buildroot/t113-linux/lichee/out/t113_s3p/evb1_auto/bui
+ldroot/buildroot/build/libinput-1.12.5//build
+/bin/bash: /home/dailybuild/jenkins/code/dailybuild/buildroot/t113-linux/l
+ichee/out/t113_s3p/evb1_auto/buildroot/buildroot/host/bin/meson: /home/dai
+lybuild/jenkins/code/dailybuild/buildroot/t113-linux/lichee/out/t113: bad
+interpreter: No such file or directory
+
+make[1]: *** [/home/dailybuild/jenkins/code/dailybuild/buildroot/t113-linu
+x/lichee/out/t113_s3p/evb1_auto/buildroot/buildroot/build/libinput-1.12.5/
+.stamp_configured] Error 126
+make: *** [_all] Error 2
+make: Leaving directory `/home/dailybuild/jenkins/code/dailybuild/buildroo
+t/t113-linux/lichee/buildroot/buildroot-201902'
+
+Signed-off-by: zhaoyouyi <zhaoyouyi@allwinnertech.com>
+---
+ setuptools/command/install_scripts.py | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/setuptools/command/install_scripts.py b/setuptools/command/install_scripts.py
+index 4585de5..274dc27 100755
+--- a/setuptools/command/install_scripts.py
++++ b/setuptools/command/install_scripts.py
+@@ -39,6 +39,8 @@ class install_scripts(orig.install_scripts):
+         )
+         bs_cmd = self.get_finalized_command('build_scripts')
+         exec_param = getattr(bs_cmd, 'executable', None)
++        if sys.platform =='linux' and exec_param.endswith("/python3"):
++            exec_param = '/usr/bin/env python3'
+         if self.executable is not None:
+             exec_param = self.executable
+         bw_cmd = self.get_finalized_command("bdist_wininst")
+-- 
+2.29.0
+

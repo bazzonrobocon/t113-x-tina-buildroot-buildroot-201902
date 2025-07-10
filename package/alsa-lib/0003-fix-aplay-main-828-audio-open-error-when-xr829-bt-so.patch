@@ -1,0 +1,32 @@
+From 9ecd6522fa4d0509ddc069de8cd3cfed146744a8 Mon Sep 17 00:00:00 2001
+From: pengcui <pengcui@allwinnertech.com>
+Date: Wed, 16 Nov 2022 16:26:34 +0800
+Subject: [PATCH] fix aplay:main:828 audio open error when xr829 bt-source play
+ audio
+
+---
+ src/conf/alsa.conf | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/conf/alsa.conf b/src/conf/alsa.conf
+index bb00ff4..f22918f 100644
+--- a/src/conf/alsa.conf
++++ b/src/conf/alsa.conf
+@@ -8,7 +8,13 @@
+ 	{
+ 		func load
+ 		files [
+-			"/etc/alsa/conf.d"
++			{
++				@func concat
++				strings [
++					{ @func datadir }
++					"/alsa.conf.d/"
++				]
++			}
+ 			"/etc/asound.conf"
+ 			"~/.asoundrc"
+ 		]
+-- 
+2.7.4
+

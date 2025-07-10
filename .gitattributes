@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+dl/toolchain-external-arm-aarch64/gcc-arm-8.2-2018.11-x86_64-aarch64-linux-gnu.tar.xz filter=lfs diff=lfs merge=lfs -text
+dl/toolchain-external-linaro-arm/gcc-linaro-7.3.1-2018.05-x86_64_arm-linux-gnueabihf.tar.xz filter=lfs diff=lfs merge=lfs -text
+dl/toolchain-external-linaro-armsf/gcc-linaro-7.3.1-2018.05-x86_64_arm-linux-gnueabi.tar.xz filter=lfs diff=lfs merge=lfs -text

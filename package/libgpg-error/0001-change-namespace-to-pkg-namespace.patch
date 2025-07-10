@@ -1,0 +1,40 @@
+From 3419dd86dfc97086ba73474412d7cc22a8b819ec Mon Sep 17 00:00:00 2001
+From: tanhonghao <tanhonghao@allwinnertech.com>
+Date: Fri, 21 Jul 2023 16:14:49 +0800
+Subject: [PATCH] change-namespace-to-pkg-namespace
+
+Signed-off-by: tanhonghao <tanhonghao@allwinnertech.com>
+---
+ src/Makefile.am | 2 +-
+ src/Makefile.in | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/Makefile.am b/src/Makefile.am
+index 8e6683f..3f208d5 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -292,7 +292,7 @@ code-from-errno.h: mkerrcodes$(EXEEXT_FOR_BUILD) Makefile
+ 
+ errnos-sym.h: Makefile mkstrtable.awk errnos.in
+ 	$(AWK) -f $(srcdir)/mkstrtable.awk -v textidx=2 -v nogettext=1 \
+-		-v prefix=GPG_ERR_ -v namespace=errnos_ \
++		-v prefix=GPG_ERR_ -v pkg_namespace=errnos_ \
+ 		$(srcdir)/errnos.in >$@
+ 
+ 
+diff --git a/src/Makefile.in b/src/Makefile.in
+index f969a69..a888b71 100644
+--- a/src/Makefile.in
++++ b/src/Makefile.in
+@@ -1613,7 +1613,7 @@ code-from-errno.h: mkerrcodes$(EXEEXT_FOR_BUILD) Makefile
+ 
+ errnos-sym.h: Makefile mkstrtable.awk errnos.in
+ 	$(AWK) -f $(srcdir)/mkstrtable.awk -v textidx=2 -v nogettext=1 \
+-		-v prefix=GPG_ERR_ -v namespace=errnos_ \
++		-v prefix=GPG_ERR_ -v pkg_namespace=errnos_ \
+ 		$(srcdir)/errnos.in >$@
+ 
+ mkheader$(EXEEXT_FOR_BUILD): mkheader.c Makefile
+-- 
+2.25.1
+

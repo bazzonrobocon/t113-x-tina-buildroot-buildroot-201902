@@ -1,0 +1,213 @@
+################################################################################
+#
+# bluez5_utils
+#
+################################################################################
+
+# Keep the version and patches in sync with bluez5_utils-headers
+BLUEZ5_UTILS_VERSION = 5.54
+BLUEZ5_UTILS_SOURCE = bluez-$(BLUEZ5_UTILS_VERSION).tar.xz
+BLUEZ5_UTILS_SITE = $(BR2_KERNEL_MIRROR)/linux/bluetooth
+BLUEZ5_UTILS_INSTALL_STAGING = YES
+BLUEZ5_UTILS_LICENSE = GPL-2.0+, LGPL-2.1+
+BLUEZ5_UTILS_LICENSE_FILES = COPYING COPYING.LIB
+BLUEZ5_UTILS_CPE_ID_VENDOR = bluez
+BLUEZ5_UTILS_CPE_ID_PRODUCT = bluez
+BLUEZ5_UTILS_INSTALL_STAGING = YES
+
+BLUEZ5_UTILS_DEPENDENCIES = \
+	$(if $(BR2_PACKAGE_BLUEZ5_UTILS_HEADERS),bluez5_utils-headers) \
+	dbus \
+	libglib2
+
+BLUEZ5_UTILS_CONF_OPTS = \
+	--enable-static \
+	--enable-shared \
+	--enable-library \
+	--disable-cups \
+	--disable-manpages \
+	--disable-asan \
+	--disable-lsan \
+	--disable-ubsan \
+	--disable-pie \
+	--with-dbusconfdir=/etc
+
+BLUEZ5_UTILS_CONF_ENV += LDFLAGS="$(TARGET_LDFLAGS) -pthread"
+
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_OBEX),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-obex
+BLUEZ5_UTILS_DEPENDENCIES += libical
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-obex
+endif
+
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_CLIENT),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-client
+BLUEZ5_UTILS_DEPENDENCIES += readline
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-client
+endif
+
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_MONITOR),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-monitor
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-monitor
+endif
+
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_TOOLS),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-tools
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-tools
+endif
+
+# experimental plugins
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_EXPERIMENTAL),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-experimental
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-experimental
+endif
+
+# enable audio plugins (a2dp and avrcp)
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_AUDIO),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-a2dp --enable-avrcp
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-a2dp --disable-avrcp
+endif
+
+# enable health plugin
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_HEALTH),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-health
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-health
+endif
+
+# enable hid plugin
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_HID),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-hid
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-hid
+endif
+
+# enable hog plugin
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_HOG),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-hog
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-hog
+endif
+
+# enable mesh profile
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_MESH),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-external-ell --enable-mesh
+BLUEZ5_UTILS_DEPENDENCIES += ell json-c readline
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-external-ell --disable-mesh
+endif
+
+# enable midi profile
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_MIDI),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-midi
+BLUEZ5_UTILS_DEPENDENCIES += alsa-lib
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-midi
+endif
+
+# enable network plugin
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_NETWORK),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-network
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-network
+endif
+
+# enable nfc plugin
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_NFC),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-nfc
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-nfc
+endif
+
+# enable sap plugin
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_SAP),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-sap
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-sap
+endif
+
+# enable sixaxis plugin
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_SIXAXIS),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-sixaxis
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-sixaxis
+endif
+
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_DEPRECATED),y)
+# install gatttool (For some reason upstream choose not to do it by default)
+# gattool depends on the client for readline
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_CLIENT),y)
+define BLUEZ5_UTILS_INSTALL_GATTTOOL
+	$(INSTALL) -D -m 0755 $(@D)/attrib/gatttool $(TARGET_DIR)/usr/bin/gatttool
+endef
+BLUEZ5_UTILS_POST_INSTALL_TARGET_HOOKS += BLUEZ5_UTILS_INSTALL_GATTTOOL
+endif
+
+# hciattach_bcm43xx defines default firmware path in `/etc/firmware`, but
+# Broadcom firmware blobs are usually located in `/lib/firmware`.
+BLUEZ5_UTILS_CONF_ENV += \
+	CPPFLAGS='$(TARGET_CPPFLAGS) -DFIRMWARE_DIR=\"/lib/firmware\"'
+BLUEZ5_UTILS_CONF_OPTS += --enable-deprecated
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-deprecated
+endif
+
+# enable test
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_TEST),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-test
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-test
+endif
+
+# enable hid2hci tool
+ifeq ($(BR2_PACKAGE_BLUEZ5_UTILS_TOOLS_HID2HCI),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-hid2hci
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-hid2hci
+endif
+
+# use udev if available
+ifeq ($(BR2_PACKAGE_HAS_UDEV),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-udev
+BLUEZ5_UTILS_DEPENDENCIES += udev
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-udev
+endif
+
+# integrate with systemd if available
+ifeq ($(BR2_PACKAGE_SYSTEMD),y)
+BLUEZ5_UTILS_CONF_OPTS += --enable-systemd
+BLUEZ5_UTILS_DEPENDENCIES += systemd
+else
+BLUEZ5_UTILS_CONF_OPTS += --disable-systemd
+endif
+
+define BLUEZ5_UTILS_INSTALL_STAGING_CMDS
+	mkdir -p $(STAGING_DIR)/usr/include
+	cp -rf $(@D)/lib/bluetooth $(STAGING_DIR)/usr/include
+	mkdir -p $(STAGING_DIR)/usr/include/src/shared
+	cp -rf $(@D)/src/shared/*.h $(STAGING_DIR)/usr/include/src/shared
+	cp -rf $(@D)/monitor/*.h $(STAGING_DIR)/usr/include/src/shared
+	mkdir -p $(STAGING_DIR)/usr/include/lib
+	cp -rf $(@D)/lib/*.h $(STAGING_DIR)/usr/include/lib
+	mkdir -p $(STAGING_DIR)/usr/lib
+	cp -rf $(@D)/src/.libs/*.a $(STAGING_DIR)/usr/lib
+	cp -rf $(@D)/lib/.libs/*.a $(STAGING_DIR)/usr/lib
+	cp -rf $(@D)/lib/.libs/*.so* $(STAGING_DIR)/usr/lib
+	$(INSTALL) -m 644 $(@D)/lib/*.pc $(STAGING_DIR)/usr/lib/pkgconfig/
+endef
+
+define BLUEZ5_UTILS_INSTALL_INIT_SYSV
+	$(INSTALL) -m 0755 -D package/bluez5_utils/S40bluetooth $(TARGET_DIR)/etc/bluetooth/bluetoothd
+	$(INSTALL) -m 0755 -D package/bluez5_utils/main.conf $(TARGET_DIR)/etc/bluetooth/main.conf
+	$(INSTALL) -m 0755 -D $(@D)/profiles/network/network.conf $(TARGET_DIR)/etc/bluetooth/network.conf
+	$(INSTALL) -m 0755 -D $(@D)/profiles/input/input.conf $(TARGET_DIR)/etc/bluetooth/input.conf
+endef
+
+$(eval $(autotools-package))

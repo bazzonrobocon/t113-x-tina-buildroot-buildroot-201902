@@ -1,0 +1,284 @@
+From f5ae6d16271cacf583f84053d859c0694426e236 Mon Sep 17 00:00:00 2001
+From: pengcui <pengcui@allwinnertech.com>
+Date: Sat, 8 Oct 2022 20:43:57 +0800
+Subject: [PATCH] init support reboot efex command for sun8iw11
+
+---
+ init/halt.c | 254 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 254 insertions(+)
+
+diff --git a/init/halt.c b/init/halt.c
+index fe3cb9e..ec053b9 100644
+--- a/init/halt.c
++++ b/init/halt.c
+@@ -93,6 +93,218 @@
+ 
+ #include "libbb.h"
+ #include "reboot.h"
++#define LOGE(...) fprintf(stderr, "E:" __VA_ARGS__)
++
++/* Bootloader Message
++ */
++struct bootloader_message {
++	char command[32];
++	char status[32];
++	char version[32];
++	//char recovery[1024];
++};
++
++static const char *MISC_DEVICE = "/dev/by-name/misc";
++static const char *RTC_SYSFS_FLAG_DEFAULT = "/sys/devices/platform/soc/rtc/flag";
++static const char *RTC_SYSFS_FLAG_SUN8IW20 = "/sys/devices/platform/soc@3000000/7090000.rtc/flag";
++static const char *RTC_SYSFS_FLAG_SUN8IW11 = "/sys/devices/platform/soc@1c00000/1c20400.rtc/flag";
++
++// ------------------------------------
++// for misc partitions on block devices
++// ------------------------------------
++static int get_mtd_partition_index_byname(const char *name)
++{
++	char *line = NULL;
++	size_t len = 0;
++	ssize_t read;
++	int index = 0;
++	FILE *fp;
++	fp = fopen("/proc/mtd", "r");
++	if (fp == NULL) {
++		LOGE("open /proc/mtd failed(%s)\n", strerror(errno));
++		return -1;
++	}
++	while ((read = getline(&line, &len, fp)) != -1) {
++		if (strstr(line, name) == NULL)
++			continue;
++		index = line[3] - '0';
++		break;
++	}
++	free(line);
++	return index;
++}
++
++static int is_mmc_or_mtd(void)
++{
++	int part_index = 0;
++	int is_mtd = access("/dev/mtd0", F_OK); // mode:F_OK
++	if (is_mtd == -1)
++		return 0; // mmc
++	part_index = get_mtd_partition_index_byname("misc");
++	return part_index; // mtd
++}
++
++static int get_bootloader_message_block(struct bootloader_message *out,
++                                        const char* misc)
++{
++	char device[50];
++	FILE* f;
++	int count;
++	struct bootloader_message temp;
++	int id = is_mmc_or_mtd();
++	if (id == 0) {
++		strcpy(device, misc);
++	} else {
++		sprintf(device, "/dev/mtd%d", id);
++	}
++
++	f = fopen(device, "rb");
++	if (f == NULL) {
++		LOGE("Can't open %s\n(%s)\n", device, strerror(errno));
++		return -1;
++	}
++
++	count = fread(&temp, sizeof(temp), 1, f);
++	if (count != 1) {
++		LOGE("Failed reading %s\n(%s)\n", device, strerror(errno));
++		return -1;
++	}
++	if (fclose(f) != 0) {
++		LOGE("Failed closing %s\n(%s)\n", device, strerror(errno));
++		return -1;
++	}
++	memcpy(out, &temp, sizeof(temp));
++	return 0;
++}
++
++static int set_bootloader_message_block(const struct bootloader_message *in,
++                                        const char* misc)
++{
++	char device[50];
++	FILE* f;
++	int count;
++	int id = is_mmc_or_mtd();
++	if (id == 0) {
++		strcpy(device, misc);
++	} else {
++		sprintf(device, "/dev/mtd%d", id);
++		system("mtd erase misc");
++	}
++
++	f = fopen(device, "wb");
++	if (f == NULL) {
++		LOGE("Can't open %s\n(%s)\n", device, strerror(errno));
++		return -1;
++	}
++	count = fwrite(in, sizeof(*in), 1, f);
++	if (count != 1) {
++		LOGE("Failed writing %s\n(%s)\n", device, strerror(errno));
++		return -1;
++	}
++	fflush(f);
++	if (fclose(f) != 0) {
++		LOGE("Failed closing %s\n(%s)\n", device, strerror(errno));
++		return -1;
++	}
++	return 0;
++}
++
++/* force the next boot to recovery/efex */
++static int write_misc(const char *reason)
++{
++
++	struct bootloader_message boot, temp;
++	//if(strcmp(reason,"efex") != 0){
++	//  return 0;
++	//}
++
++	memset(&boot, 0, sizeof(boot));
++	//if(!strcmp("recovery",reason)){
++	//  reason = "boot-recovery";
++	//}
++	//strcpy(boot.command, "boot-recovery");
++	strcpy(boot.command, reason);
++	if (set_bootloader_message_block(&boot, MISC_DEVICE))
++		return -1;
++
++	//read for compare
++	memset(&temp, 0, sizeof(temp));
++	if (get_bootloader_message_block(&temp, MISC_DEVICE))
++		return -1;
++
++	if (memcmp(&boot, &temp, sizeof(boot)))
++		return -1;
++
++	return 0;
++}
++
++static int check_sunxi_platform(void)
++{
++	int err = 0;
++	FILE *fp = NULL;
++	char read_result[256];
++	memset(read_result, 0, sizeof(read_result));
++
++	fp = fopen("/sys/class/sunxi_info/sys_info", "r");
++	if (fp) {
++		err = fread(read_result, sizeof(char), 256, fp);
++		fclose(fp);
++	}
++
++	if (err > 0) {
++		//printf("read %d bytes ok,read_result:\n%s\n", err, read_result);
++		//printf("read /sys/class/sunxi_info/sys_info ok\n");
++	} else {
++		printf("read /sys/class/sunxi_info/sys_info fail, return\n");
++		return -1;
++	}
++
++	if (strstr(read_result, "sun8iw20") != NULL) {
++		return 1;
++	} else if (strstr(read_result, "sun8iw11") != NULL) {
++		return 2;
++	}
++	return 0;
++}
++
++/* force the next boot to recovery/efex */
++static int write_rtc_flag(const char *reason)
++{
++	int ret;
++	FILE* f;
++	int count;
++	char* RTC_SYSFS_FLAG = RTC_SYSFS_FLAG_DEFAULT;
++
++	if (check_sunxi_platform() == 1) {
++		//printf("match SUN8IW20!\n");
++		RTC_SYSFS_FLAG = RTC_SYSFS_FLAG_SUN8IW20;
++	} else if (check_sunxi_platform() == 2) {
++		//printf("match SUN8IW11!\n");
++		RTC_SYSFS_FLAG = RTC_SYSFS_FLAG_SUN8IW11;
++	}
++	ret = access(RTC_SYSFS_FLAG, F_OK); //mode:F_OK
++	if (ret == -1) {
++		LOGE("can not access %s\n", RTC_SYSFS_FLAG);
++		return 0;
++	}
++
++	f = fopen(RTC_SYSFS_FLAG, "wb");
++	if (f == NULL) {
++		LOGE("Can't open %s\n(%s)\n", RTC_SYSFS_FLAG, strerror(errno));
++		return -1;
++	}
++	count = fprintf(f, "%s\n", reason);
++	if (count == -1) {
++		LOGE("Failed writing %s\n(%s)\n", RTC_SYSFS_FLAG, strerror(errno));
++		return -1;
++	}
++	/* fflush(f); */
++	if (fclose(f) != 0) {
++		LOGE("Failed closing %s\n(%s)\n", RTC_SYSFS_FLAG, strerror(errno));
++		return -1;
++	}
++	return 0;
++}
+ 
+ #if ENABLE_FEATURE_WTMP
+ #include <sys/utsname.h>
+@@ -173,6 +385,48 @@ int halt_main(int argc UNUSED_PARAM, char **argv)
+ 
+ 	int delay = 0;
+ 	int which, flags, rc;
++	int argc_index = 0;
++	char misc_cmd[][20] = {
++		"efex",
++		"boot-recovery",
++		"security",
++		"bootloader"
++	};
++	char rtc_cmd[][20] = {
++		"debug",
++		"efex",
++		"boot-resignature",
++		"recovery",
++		"boot-recovery",
++		"sysrecovery",
++		"bootloader",
++		"usb-recovery",
++		"uboot"
++	};
++
++	for (argc_index = 0; argc_index < argc; argc_index++) {
++		int writed = -1;
++		for (int i = 0; i < sizeof(misc_cmd) / sizeof(misc_cmd[0]); i++) {
++			if (strcmp(argv[argc_index], misc_cmd[i]) == 0) {
++				printf("write misc: %s\n", misc_cmd[i]);
++				writed = write_misc(misc_cmd[i]);
++				break;
++			}
++		}
++		if (writed == 0) break;
++	}
++
++	for (argc_index = 0; argc_index < argc; argc_index++) {
++		int rtc_writed = -1;
++		for (int i = 0; i < sizeof(rtc_cmd) / sizeof(rtc_cmd[0]); i++) {
++			if (strcmp(argv[argc_index], rtc_cmd[i]) == 0) {
++				printf("write rtc: %s\n", rtc_cmd[i]);
++				rtc_writed = write_rtc_flag(rtc_cmd[i]);
++				break;
++			}
++		}
++		if (rtc_writed == 0) break;
++	}
+ 
+ 	/* Figure out which applet we're running */
+ 	if (ENABLE_HALT && !ENABLE_POWEROFF && !ENABLE_REBOOT)
+-- 
+2.7.4
+

@@ -1,0 +1,41 @@
+From 73c9276c8a3a592a30b258c14b4a24890856b313 Mon Sep 17 00:00:00 2001
+From: tanhonghao <tanhonghao@allwinnertech.com>
+Date: Fri, 21 Jul 2023 13:51:53 +0800
+Subject: [PATCH] gdbus fix directive argument is null
+
+---
+ gio/gdbusauth.c    | 3 ++-
+ gio/gdbusmessage.c | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/gio/gdbusauth.c b/gio/gdbusauth.c
+index 1a0ada5..be1431f 100644
+--- a/gio/gdbusauth.c
++++ b/gio/gdbusauth.c
+@@ -1299,7 +1299,8 @@ _g_dbus_auth_run_server (GDBusAuth              *auth,
+                                                     &line_length,
+                                                     cancellable,
+                                                     error);
+-          debug_print ("SERVER: WaitingForBegin, read '%s'", line);
++          if (line != NULL)
++              debug_print ("SERVER: WaitingForBegin, read '%s'", line);
+           if (line == NULL)
+             goto out;
+           if (g_strcmp0 (line, "BEGIN") == 0)
+diff --git a/gio/gdbusmessage.c b/gio/gdbusmessage.c
+index be001ae..181ce87 100644
+--- a/gio/gdbusmessage.c
++++ b/gio/gdbusmessage.c
+@@ -2699,7 +2699,8 @@ g_dbus_message_to_blob (GDBusMessage          *message,
+   if (message->body != NULL)
+     {
+       gchar *tupled_signature_str;
+-      tupled_signature_str = g_strdup_printf ("(%s)", signature_str);
++      if (signature_str)
++        tupled_signature_str = g_strdup_printf ("(%s)", signature_str);
+       if (signature == NULL)
+         {
+           g_set_error (error,
+-- 
+2.25.1
+
